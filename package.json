@@ -1,8 +1,1 @@
-{
-  "name": "halloween-reformation-quiz",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {"start": "node server.js"},
-  "engines": {"node": ">=18"},
-  "dependencies": {"express": "^4.21.2", "qrcode": "^1.5.4", "socket.io": "^4.8.1"}
-}
+{"name":"mystery-1031","version":"2.0.0","private":true,"scripts":{"start":"node server.js"},"engines":{"node":">=18"},"dependencies":{"express":"^4.21.2","socket.io":"^4.8.1","qrcode":"^1.5.4"}}

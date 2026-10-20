@@ -1,11 +1,7 @@
 services:
   - type: web
-    name: halloween-reformation-quiz
+    name: mystery-1031
     runtime: node
     plan: free
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /health
-    envVars:
-      - key: NODE_ENV
-        value: production

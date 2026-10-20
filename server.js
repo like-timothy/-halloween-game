@@ -1,41 +1,29 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const express=require('express');
+const http=require('http');
+const {Server}=require('socket.io');
+const QRCode=require('qrcode');
+const app=express(),server=http.createServer(app),io=new Server(server);
 app.use(express.static('public'));
-app.get('/health', (_req,res) => res.status(200).send('ok'));
-app.get('/qr', async (req,res) => {
-  const code = String(req.query.code || '');
-  if (!/^\d{6}$/.test(code)) return res.status(400).send('Invalid code');
-  const url = `${req.protocol}://${req.get('host')}/?code=${code}`;
-  try {
-    const png = await require('qrcode').toBuffer(url, {width:320, margin:2});
-    res.type('png').send(png);
-  } catch {res.status(500).send('QR unavailable');}
-});
-const rooms = new Map();
-const ROUND_MS=25000;
-const QUESTIONS = [
- {q:'사건 파일 01 · 두 사건이 만나는 날짜를 찾아라!',choices:['10월 1일','10월 25일','10월 31일','11월 1일'],correct:2,note:'10월 31일은 할로윈이자 종교개혁을 기념하는 날이에요. 첫 번째 암호: 31',scene:0},
- {q:'사건 파일 02 · 오래된 기록에서 할로윈의 원래 이름을 찾아라!',choices:['All Hallows’ Eve','Harvest Festival','Winter Night','Saints’ Morning'],correct:0,note:'Halloween은 All Hallows’ Eve(모든 성인의 날 전야)에서 유래했어요.',scene:1},
- {q:'사건 파일 03 · 시장에서 논란을 일으킨 거래를 찾아라!',choices:['빵을 파는 상인','옷을 파는 상인','면죄부를 판매하는 사람','책을 파는 상인'],correct:2,note:'당시 면죄부 판매와 그에 따른 잘못된 가르침이 논란이 되었어요. 면죄부는 본래 죄 자체를 돈으로 용서받는 증서가 아니에요.',scene:2},
- {q:'사건 파일 04 · 교회 문에서 중요한 문서를 찾아라!',choices:['교회 행사 안내문','95개조 반박문','성가대 모집 공고','시장 영업 시간표'],correct:1,note:'루터는 1517년 10월 31일 95개조 반박문을 발표했어요. 교회 문에 게시했다는 이야기는 전통적으로 전해집니다.',scene:3},
- {q:'사건 파일 05 · 마지막 금고를 여는 문장을 찾아라!',choices:['돈이 많으면 구원받는다','완벽해야 사랑받는다','인기가 많으면 의롭다','의인은 믿음으로 살리라'],correct:3,note:'로마서 1:17 “오직 의인은 믿음으로 말미암아 살리라”. 종교개혁의 중요한 가르침은 오직 은혜·오직 믿음·오직 성경이에요.',scene:4}
+app.get('/health',(_q,r)=>r.send('ok'));
+app.get('/qr',async(req,res)=>{const code=String(req.query.code||'');if(!/^\d{6}$/.test(code))return res.sendStatus(400);const url=`${req.protocol}://${req.get('host')}/?code=${code}`;res.type('png');res.send(await QRCode.toBuffer(url,{width:320,margin:2}));});
+const cases=[
+ {title:'잠긴 달력',story:'벽에 걸린 낡은 달력. 두 숫자가 적힌 쪽지만 빛납니다. 두 숫자를 조합해 특별한 날짜를 찾아보세요.',prompt:'달력에서 비밀의 날짜를 터치하세요.',objects:[['🗓️','10월 15일'],['🕯️','10월 30일'],['🎃','10월 31일'],['🍂','11월 1일']],answer:2,clue:'10월 31일',explain:'이 날은 가을 축제의 전야로 알려져 있지만, 역사 속 또 다른 중요한 사건과도 연결됩니다.'},
+ {title:'수상한 축제의 방',story:'가면과 사탕, 오래된 책이 놓여 있습니다. 이 축제의 이름에 숨겨진 뜻을 찾아보세요.',prompt:'‘모든 성인의 날 전야’를 뜻하는 오래된 이름을 찾으세요.',objects:[['🍬','Sweet Night'],['📜',"All Hallows’ Eve"],['🎭','Mask Festival'],['🌙','Moon Eve']],answer:1,clue:'All Hallows’ Eve',explain:'오늘날 널리 알려진 축제 이름은 All Hallows’ Eve(모든 성인의 날 전야)라는 표현에서 유래했습니다.'},
+ {title:'흩어진 단어 조각',story:'서랍에서 네 장의 낡은 카드가 나왔습니다. 축제의 풍경과 어울리는 물건이 무엇인지 찾아보세요.',prompt:'전통적인 ‘잭오랜턴’을 만드는 데 쓰는 것을 터치하세요.',objects:[['🧅','양파'],['🥔','감자'],['🍎','사과'],['🎃','호박']],answer:3,clue:'Jack-o’-lantern',explain:'잭오랜턴은 오늘날 호박을 파서 만든 등불로 유명합니다. 과거 일부 지역에서는 순무도 사용했습니다.'},
+ {title:'사라진 문서의 비밀',story:'시간의 문이 열리고 1517년 유럽의 오래된 교회 앞에 도착했습니다. 마지막 문서를 찾아야 탈출할 수 있습니다.',prompt:'1517년 10월 31일과 연결된 역사적 문서를 선택하세요.',objects:[['📕','수도원 규칙집'],['📜','95개조 반박문'],['🎼','찬송가 악보'],['🗺️','항해 지도']],answer:1,clue:'종교개혁',explain:'1517년 10월 31일, 마르틴 루터는 면죄부 판매와 관련한 문제를 제기하는 95개조 반박문을 발표했습니다. 전통적으로 교회 문에 게시했다고 전해집니다.'}
 ];
-function code(){let x; do{x=String(Math.floor(100000+Math.random()*900000));}while(rooms.has(x));return x;}
-function roster(r){return [...r.players.values()].map(p=>({name:p.name,score:p.score,id:p.id})).sort((a,b)=>b.score-a.score);}
-function emitState(r){io.to(r.code).emit('room-state',{code:r.code,phase:r.phase,index:r.index,total:QUESTIONS.length,players:roster(r),answered:r.answers.size,deadline:r.deadline});}
-function reveal(r){if(r.phase!=='question')return; clearTimeout(r.timer);r.phase='reveal';const q=QUESTIONS[r.index];const counts=q.choices.map((_,i)=>[...r.answers.values()].filter(a=>a.choice===i).length);io.to(r.code).emit('reveal',{correct:q.correct,counts,note:q.note,players:roster(r)});emitState(r);}
-function next(r){clearTimeout(r.timer);r.index++;if(r.index>=QUESTIONS.length){r.phase='finished';io.to(r.code).emit('finished',{players:roster(r)});emitState(r);return;}r.phase='question';r.answers.clear();r.deadline=Date.now()+ROUND_MS;const q=QUESTIONS[r.index];io.to(r.code).emit('question',{index:r.index,total:QUESTIONS.length,q:q.q,choices:q.choices,deadline:r.deadline,duration:ROUND_MS,scene:q.scene,poll:q.correct===null});emitState(r);r.timer=setTimeout(()=>reveal(r),15000);}
-io.on('connection',socket=>{
-  socket.on('create-room',(_,cb)=>{const c=code();const r={code:c,host:socket.id,players:new Map(),phase:'lobby',index:-1,answers:new Map(),deadline:null,timer:null};rooms.set(c,r);socket.join(c);socket.data.room=c;socket.data.host=true;cb?.({ok:true,code:c});emitState(r);});
-  socket.on('join-room',(data,cb)=>{const c=String(data?.code||'').trim();const name=String(data?.name||'').trim().slice(0,16);const r=rooms.get(c);if(!r)return cb?.({ok:false,error:'참여 코드를 확인해 주세요.'});if(r.phase!=='lobby')return cb?.({ok:false,error:'이미 시작된 게임입니다. 다음 게임에 참여해 주세요.'});if(!name)return cb?.({ok:false,error:'닉네임을 입력해 주세요.'});if(r.players.size>=100)return cb?.({ok:false,error:'참여 인원이 가득 찼습니다.'});if([...r.players.values()].some(p=>p.name===name))return cb?.({ok:false,error:'이미 사용 중인 닉네임입니다.'});r.players.set(socket.id,{id:socket.id,name,score:0});socket.join(c);socket.data.room=c;socket.data.host=false;cb?.({ok:true,code:c,name});emitState(r);});
-  socket.on('start',(_,cb)=>{const r=rooms.get(socket.data.room);if(!r||r.host!==socket.id||r.phase!=='lobby')return cb?.({ok:false});if(r.players.size===0)return cb?.({ok:false,error:'학생이 한 명 이상 참여해야 합니다.'});next(r);cb?.({ok:true});});
-  socket.on('answer',(data,cb)=>{const r=rooms.get(socket.data.room);if(!r||r.phase!=='question'||!r.players.has(socket.id)||r.answers.has(socket.id)||Date.now()>r.deadline)return cb?.({ok:false});const choice=Number(data?.choice);if(!Number.isInteger(choice)||choice<0||choice>3)return cb?.({ok:false});const q=QUESTIONS[r.index];r.answers.set(socket.id,{choice});if(q.correct===choice){const remaining=Math.max(0,r.deadline-Date.now());r.players.get(socket.id).score+=500+Math.round(500*remaining/ROUND_MS);}cb?.({ok:true});emitState(r);});
-  socket.on('next',(_,cb)=>{const r=rooms.get(socket.data.room);if(!r||r.host!==socket.id||r.phase!=='reveal')return cb?.({ok:false});next(r);cb?.({ok:true});});
-  socket.on('restart',(_,cb)=>{const r=rooms.get(socket.data.room);if(!r||r.host!==socket.id||r.phase!=='finished')return cb?.({ok:false});r.phase='lobby';r.index=-1;r.answers.clear();r.deadline=null;for(const p of r.players.values())p.score=0;io.to(r.code).emit('reset');emitState(r);cb?.({ok:true});});
-  socket.on('disconnect',()=>{const r=rooms.get(socket.data.room);if(!r)return;if(r.host===socket.id){clearTimeout(r.timer);io.to(r.code).emit('closed');rooms.delete(r.code);return;}r.players.delete(socket.id);r.answers.delete(socket.id);emitState(r);});
+const rooms=new Map();function newCode(){let c;do{c=String(Math.floor(100000+Math.random()*900000))}while(rooms.has(c));return c;}
+function roster(r){return [...r.players.values()].map(p=>({name:p.name,score:p.score})).sort((a,b)=>b.score-a.score)}
+function state(r){io.to(r.code).emit('state',{phase:r.phase,code:r.code,index:r.index,count:r.players.size,players:roster(r),answered:r.answers.size,total:cases.length})}
+function sendCase(r){r.phase='playing';r.answers.clear();io.to(r.code).emit('case',{index:r.index,total:cases.length,...Object.fromEntries(Object.entries(cases[r.index]).filter(([k])=>k!=='answer'&&k!=='explain'&&k!=='clue'))});state(r)}
+function ack(cb,data){if(typeof cb==='function')cb(data)}
+io.on('connection',s=>{
+ s.on('create',(_,cb)=>{const c=newCode(),r={code:c,host:s.id,players:new Map(),phase:'lobby',index:0,answers:new Map()};rooms.set(c,r);s.join(c);s.data.code=c;s.data.host=true;ack(cb,{ok:true,code:c});state(r)});
+ s.on('join',(data,cb)=>{const c=String(data?.code||'').trim(),name=String(data?.name||'').trim().slice(0,18),r=rooms.get(c);if(!r)return ack(cb,{ok:false,error:'참여 코드를 확인해 주세요.'});if(r.phase!=='lobby')return ack(cb,{ok:false,error:'이미 시작된 게임입니다.'});if(!name)return ack(cb,{ok:false,error:'닉네임을 입력하세요.'});if(r.players.size>=120)return ack(cb,{ok:false,error:'참여 인원이 가득 찼습니다.'});if([...r.players.values()].some(p=>p.name===name))return ack(cb,{ok:false,error:'이미 사용 중인 닉네임이에요.'});r.players.set(s.id,{name,score:0});s.join(c);s.data.code=c;s.data.host=false;ack(cb,{ok:true,name});state(r)});
+ s.on('start',(_,cb)=>{const r=rooms.get(s.data.code);if(!r||r.host!==s.id||r.phase!=='lobby')return ack(cb,{ok:false});if(!r.players.size)return ack(cb,{ok:false,error:'학생 입장을 기다려 주세요.'});r.index=0;sendCase(r);ack(cb,{ok:true})});
+ s.on('answer',(d,cb)=>{const r=rooms.get(s.data.code);if(!r||r.phase!=='playing'||!r.players.has(s.id)||r.answers.has(s.id))return ack(cb,{ok:false});const v=Number(d?.choice);if(!Number.isInteger(v)||v<0||v>=4)return ack(cb,{ok:false});r.answers.set(s.id,v);if(v===cases[r.index].answer)r.players.get(s.id).score+=100;ack(cb,{ok:true});state(r)});
+ s.on('reveal',(_,cb)=>{const r=rooms.get(s.data.code);if(!r||r.host!==s.id||r.phase!=='playing')return ack(cb,{ok:false});r.phase='reveal';const q=cases[r.index];io.to(r.code).emit('reveal',{answer:q.answer,clue:q.clue,explain:q.explain,counts:q.objects.map((_,i)=>[...r.answers.values()].filter(v=>v===i).length)});state(r);ack(cb,{ok:true})});
+ s.on('next',(_,cb)=>{const r=rooms.get(s.data.code);if(!r||r.host!==s.id||r.phase!=='reveal')return ack(cb,{ok:false});r.index++;if(r.index>=cases.length){r.phase='finished';io.to(r.code).emit('finished',{players:roster(r)});state(r)}else sendCase(r);ack(cb,{ok:true})});
+ s.on('disconnect',()=>{const r=rooms.get(s.data.code);if(!r)return;if(r.host===s.id){io.to(r.code).emit('closed');rooms.delete(r.code)}else{r.players.delete(s.id);r.answers.delete(s.id);state(r)}});
 });
-server.listen(process.env.PORT||3000,()=>console.log('Quiz ready on port '+(process.env.PORT||3000)));
+server.listen(process.env.PORT||3000,()=>console.log('Mystery game listening'));
